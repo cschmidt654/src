@@ -10,6 +10,7 @@ import utils
 import config
 from datasets.cld_high_dataset import CLD_high_dataset
 import os
+import torchvision
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -32,23 +33,24 @@ transform = transforms.Compose([
     transforms.ToTensor(),
 ])
 # training set and train data loader
-data = CLD_high_dataset()
+#data = CLD_high_dataset()
 trainset = CLD_high_dataset()
-'''
-torchvision.datasets.MNIST(
-    root='../input', train=True, download=True, transform=transform
-)
-'''
+
+# trainset = torchvision.datasets.MNIST(
+#     root='../input', train=True, download=True, transform=transform
+# )
+
 trainloader = DataLoader(
     trainset, batch_size=batch_size, shuffle=True
 )
+
 # validation set and validation data loader
 testset = CLD_high_dataset()
-'''
-torchvision.datasets.MNIST(
-    root='../input', train=False, download=True, transform=transform
-)
-'''
+
+# testset = torchvision.datasets.MNIST(
+#     root='../input', train=False, download=True, transform=transform
+# )
+
 testloader = DataLoader(
     testset, batch_size=batch_size, shuffle=True
 )

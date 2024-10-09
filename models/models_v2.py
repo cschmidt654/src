@@ -24,145 +24,139 @@ class ConvVAE(nn.Module):
          
         self.vector_quantization = VectorQuantizer(config.num_embeddings,config.embedding_dimensions,config.beta)
         
-        self.layers = []
-
-        # this creates the first block of convolutional layers which are outised the for loop because the image channels is 
-        # a constant that cannot be integrated into the for loop
-
-        self.layers.append(nn.Conv2d(in_channels=image_channels,
-                                    out_channels=init_channels,
-                                    kernel_size=kernel_size,
-                                    stride=config.stride,
-                                    padding=config.zero_padding))
-        self.layers.append(nn.BatchNorm2d(init_channels))
-        self.layers.append(nn.LeakyReLU())
         
-        # this for loop creates a list of layers depending on what is set in the config file that can then be passed to torch.sequential
-        # for a dynamic architecture controlled by the numbers set in config
 
-        for i in range(config.encoder_convolutions-1) :
-            self.layers.append(nn.Conv2d(in_channels=init_channels*(2**i),
-                                        out_channels=init_channels*(2**(i+1)), 
-                                        kernel_size=kernel_size, 
-                                        stride=config.stride, 
-                                        padding=config.zero_padding))
-            self.layers.append(nn.BatchNorm2d(init_channels*(2**(i+1))))
-            self.layers.append(nn.LeakyReLU())
-        
-        # this layer is the last convolutional layer that happens in the encoder it is outisde the for loop because
-        # it cant have an activation or batch normalization associated with it
-        
-        self.layers.append(nn.Conv2d(in_channels=init_channels*(2**(config.encoder_convolutions-1)),
-                                    out_channels=init_channels*(2**config.encoder_convolutions),
-                                    kernel_size=kernel_size, 
-                                    stride=2, 
-                                    padding=0))
-        
-        # the asterisk forces the arguments out into a set of individual arguments instead of passing them as a list object
-        # this sets up the basic encoder
-        
-        self.encoder = torch.nn.Sequential(*self.layers)
-        
-        # this does the same thing as the regular encoder but ends in a tanh
-        # because the values will be treated as correlation coefficients
+        self.encoder = torch.nn.Sequential(
+            nn.Conv2d(image_channels,8,kernel_size,1,config.zero_padding),
+            nn.LeakyReLU(),
+            nn.Conv2d(8,8,3,2,1),
+            nn.LeakyReLU(),
 
-        self.layers.clear()
+            
 
-        self.layers.append(nn.Conv2d(in_channels=image_channels, 
-                                     out_channels=init_channels, 
-                                     kernel_size=kernel_size, 
-                                     stride=config.stride, 
-                                     padding=config.zero_padding))
-        self.layers.append(nn.BatchNorm2d(init_channels))
-        self.layers.append(nn.LeakyReLU())
+            nn.Conv2d(8,16,kernel_size,1,config.zero_padding),
+            nn.LeakyReLU(),
+            nn.Conv2d(16,16,3,2,1),
+            nn.LeakyReLU(),
 
-        for i in range(config.correlation_convolutions-1):
-            self.layers.append(nn.Conv2d(in_channels=init_channels*(2**i), 
-                                        out_channels=init_channels*(2**(i+1)), 
-                                        kernel_size=kernel_size, 
-                                        stride=config.stride, 
-                                        padding=config.zero_padding))
-            self.layers.append(nn.BatchNorm2d(init_channels*(2**(i+1))))
-            self.layers.append(nn.LeakyReLU())
+            
 
-        self.layers.append(nn.Conv2d(in_channels=init_channels*(2**(config.correlation_convolutions-1)), 
-                                    out_channels=init_channels*(2**config.correlation_convolutions), 
-                                    kernel_size=kernel_size, 
-                                    stride=2, 
-                                    padding=0))
-        self.layers.append(nn.BatchNorm2d(init_channels*(2**config.correlation_convolutions)))
-        self.layers.append(nn.Tanh())
+            nn.Conv2d(16,32,kernel_size,1,config.zero_padding),
+            nn.LeakyReLU(),
+            nn.Conv2d(32,32,3,2,1),
+            nn.LeakyReLU(),
 
-        self.correlation_encoder = torch.nn.Sequential(*self.layers)
         
-        self.layers.clear()
+ 
+            nn.Conv2d(32,64,kernel_size,1,config.zero_padding),
+            nn.LeakyReLU(),
+            nn.Conv2d(64,64,3,1,1),
+            nn.LeakyReLU(),
+
+            
+            
+        )
         
-        # these fully connected layers come after the convolutions to allow for better interpretation of the values of the correlation coefficients
+        self.latent_interpretation = torch.nn.Sequential(
+            nn.Linear(2304,1152),
+            nn.LeakyReLU(),
+
+            nn.Linear(1152,576),
+            nn.LeakyReLU(),
+
+            nn.Linear(576,288),
+            nn.LeakyReLU(),
+
+            nn.Linear(288,latent_dim),
+            nn.LeakyReLU()
+        )
         
         
 
-        for i in range(config.correlation_linears):    
-            self.layers.append(nn.Linear(init_channels*(2**config.correlation_convolutions),
-                                         init_channels*(2**config.correlation_convolutions)))
-            self.layers.append(nn.LeakyReLU())
+        self.correlation_encoder  = torch.nn.Sequential(
+            nn.Conv2d(image_channels,8,config.kernel_size,2,1),
+            nn.LeakyReLU(),
+            nn.Conv2d(8,8,3,1,1),
+            nn.LeakyReLU(),
 
-        # makes sure that the output of the correlation linear layers is equal to the latent dimensions squared so that
-        # there is enough values to make a correlation matrix
+            nn.Conv2d(8,16,config.kernel_size,2,1),
+            nn.LeakyReLU(),
+            nn.Conv2d(16,16,3,1,1),
+            nn.LeakyReLU(),
 
-        self.layers.append(nn.Linear(init_channels*(2**config.correlation_convolutions),latent_dim**2))
+            nn.Conv2d(16,32,config.kernel_size,2,1),
+            nn.LeakyReLU(),
+            nn.Conv2d(32,32,3,1,1),
+            nn.LeakyReLU(),
 
-        self.cor_interpretation = torch.nn.Sequential(*self.layers)
+            nn.Conv2d(32,64,config.kernel_size,1,1),
+            nn.LeakyReLU(),
+            nn.Conv2d(64,64,3,1,1),
+            nn.LeakyReLU()
+        )
 
-        self.layers.clear()
+        self.cor_interpretation = torch.nn.Sequential(
+            nn.Linear(5184,5184),
+            nn.LeakyReLU(),
 
-        for i in range(config.encoder_linears):
-                self.layers.append(nn.Linear(init_channels*(2**config.encoder_convolutions),
-                                            init_channels*(2**config.encoder_convolutions)))
-                self.layers.append(nn.LeakyReLU())
+            nn.Linear(5184,latent_dim**2),
+            nn.Tanh()
+        )
+
+
+
+        self.fc_mu = nn.Linear(latent_dim, latent_dim)
+        self.fc_log_var = nn.Linear(latent_dim, latent_dim)
+
         
-        self.latent_interpretation =torch.nn.Sequential(*self.layers)
 
-        self.fc_mu = nn.Linear(init_channels*(2**config.encoder_convolutions), latent_dim)
-        self.fc_log_var = nn.Linear(init_channels*(2**config.encoder_convolutions), latent_dim)
+        self.decoder = torch.nn.Sequential(
+            nn.ConvTranspose2d(64,32,5,2,2),
+            nn.LeakyReLU(),
+            nn.ConvTranspose2d(32,32,5,1,2),
+            nn.LeakyReLU(),
 
-        self.layers.clear()
+            nn.ConvTranspose2d(32,16,5,2,2),
+            nn.LeakyReLU(),
+            nn.ConvTranspose2d(16,16,5,1,2),
+            nn.LeakyReLU(),
 
-       
+            nn.ConvTranspose2d(16,8,2,2,2),
+            nn.LeakyReLU(),
+            nn.ConvTranspose2d(8,8,5,1,2),
+            nn.LeakyReLU(),
 
-        self.layers.append(nn.ConvTranspose2d(in_channels=init_channels*(2**config.encoder_convolutions),
-                                              out_channels=init_channels*(2**(config.encoder_convolutions-1)),
-                                              kernel_size = kernel_size,
-                                              stride=config.stride,
-                                              padding=0))
-        self.layers.append(nn.BatchNorm2d(init_channels*(2**(config.encoder_convolutions-1))))
-        self.layers.append(nn.LeakyReLU())
+            nn.ConvTranspose2d(8,image_channels,2,2,2),
+            nn.LeakyReLU(),
+            nn.ConvTranspose2d(image_channels,image_channels,5,1,2),
+            nn.LeakyReLU(),
 
-        for i in range(config.encoder_convolutions-1):
-            self.layers.append(nn.ConvTranspose2d(in_channels=init_channels*(2**(config.encoder_convolutions-(i+1))),
-                                                out_channels=init_channels*(2**(config.encoder_convolutions-(i+2))),
-                                                kernel_size=kernel_size,
-                                                stride=config.stride,
-                                                padding=config.zero_padding))
-            self.layers.append(nn.BatchNorm2d(init_channels*(2**(config.encoder_convolutions-(i+2)))))
-            self.layers.append(nn.LeakyReLU())
+            nn.ConvTranspose2d(image_channels,image_channels,4,1,3),
+            nn.LeakyReLU(),
+            nn.ConvTranspose2d(image_channels,image_channels,3,1,1),
+            nn.LeakyReLU(),
 
-        # ends with a sigmoid because all image pixel values from test and training dataset are between 0 and 1 rather than for 
-        # some theoretical reason
+            nn.ConvTranspose2d(image_channels,image_channels,3,1,0),
+            nn.LeakyReLU(),
+            nn.ConvTranspose2d(image_channels,image_channels,2,1,0),
+            nn.LeakyReLU()
 
-        self.layers.append(nn.ConvTranspose2d(in_channels = init_channels, 
-                                            out_channels = image_channels, 
-                                            kernel_size = 4 , 
-                                            stride = 2, 
-                                            padding = 0))
-        self.layers.append(nn.Sigmoid())
+        )
 
-        self.decoder = torch.nn.Sequential(*self.layers)
+        self.post_quantization_linears = torch.nn.Sequential(
+            nn.Linear(latent_dim,288),
+            nn.LeakyReLU(),
 
-        self.layers.clear()
+            nn.Linear(288,576),
+            nn.LeakyReLU(),
 
-        self.layers.append(nn.Linear(latent_dim, init_channels*(2**config.encoder_convolutions)))
+            nn.Linear(576,1152),
+            nn.LeakyReLU(),
 
-        self.post_quantization_linears = torch.nn.Sequential(*self.layers)
+            nn.Linear(1152,2304),
+            nn.LeakyReLU(),
+
+        )
     
     def kld(self, mu, cov_matrix):
         # finds the kld between a standard multivariate distribution and the multivariate distribution predicted by the encoder 
@@ -181,13 +175,15 @@ class ConvVAE(nn.Module):
         # encodes the features that will be used to get the latent distributions
         lat=self.encoder(x)
         batch, _, _, _ = lat.shape
-        lat = F.adaptive_avg_pool2d(lat, 1).reshape(batch, -1)
+        
+        lat = torch.flatten(lat,1,3)
         hidden_latent = self.latent_interpretation(lat)
 
         # the cor matrix holds the value of the correlation coefficients for the lower triangle of the correlation matrix
         # it is also clamped to avoid some numerical instability issues that it was having when the correlation values got very close to 0
         cor = self.correlation_encoder(x)
-        cor = F.adaptive_avg_pool2d(cor, 1).reshape(batch, -1)
+        cor = torch.flatten(cor,1,3)
+    
         cor = self.cor_interpretation(cor) 
         
         
@@ -226,14 +222,17 @@ class ConvVAE(nn.Module):
         
         embedding_loss, quant_output , perplexity, _, _, bits_loss = self.vector_quantization(quant_input,kullback)
         
-        
-        quant_output = F.adaptive_avg_pool2d(quant_output, 1).reshape(batch, -1)
+        quant_output = quant_output.reshape(batch, -1)
         
 		## Decoder part
         quant_output = self.post_quantization_linears(quant_output)
+
+        decoder_input = torch.reshape(quant_output,(batch,64,6,6))
+
+        
         #print(quant_output.shape)
 
-        decoder_input = quant_output.view(-1,init_channels*(2**(config.encoder_convolutions)),1,1)
+        
 
         
 
@@ -317,4 +316,10 @@ class VectorQuantizer(nn.Module):
 
         return loss, z_q, perplexity, min_encodings, min_encoding_indices,bits_loss
 
-
+# prevents the saturation of the tanh at the end of the correlation encoder as shown in yann lecunns paper "Efficient Back-Prop"
+class new_tanh(nn.Module):
+    def __init__(self):    
+        super().__init__()
+    def forward(self,x):
+        return 1.7159 * F.tanh( 2/3 * x) 
+        

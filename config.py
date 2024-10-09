@@ -1,7 +1,7 @@
 from torch import device
 # definattempt = 2erent numbers associated with the convolutional layer
 
-latent_dim = 32
+latent_dim = 72
 kernel_size = 3
 init_channels = 8
 image_channels = 1
@@ -12,22 +12,22 @@ stride = 2
 
 encoder_convolutions = 3
 correlation_convolutions = 3
-encoder_linears = 4
-correlation_linears = 4
+encoder_linears = 5
+correlation_linears = 5
 
 # defines the numbers associated with the vector quantization network
 
-num_embeddings = 6000
-embedding_dimensions = 16
-beta = 0.25
+num_embeddings = 12000
+embedding_dimensions = 1
+beta = 0.02
 
 # defines the number assocciated with training and evaluation
 
 # this is the lambda for rate distortion tradeoff but lambda is a special word in python
-tradeoff = 2.0
+tradeoff = 1.0
 reduction  = "sum"
-lr = 1e-3
-epochs = 200
+lr = 5e-4
+epochs = 400
 batch_size = 64
 hardware = device("cpu")
 attempt = 0

@@ -53,7 +53,7 @@ def train(model, dataloader, dataset, device, optimizer, criterion):
         reconstruction, inputs, mu, cov_matrix, quant_loss, bits, perplexity, bits_loss = model(data)
         mse_loss = criterion(reconstruction, data)
         loss, BPP = final_loss(mse_loss, mu, cov_matrix, bits)
-        loss = loss+quant_loss+config.batch_size*bits_loss
+        loss = loss+quant_loss
         loss.backward()
         running_loss += loss.item()
         optimizer.step()
@@ -90,7 +90,7 @@ def validate(model, dataloader, dataset, device, criterion):
             mse_loss = criterion(reconstruction, data)
             loss, BPP = final_loss(mse_loss, mu, cov_matrix, bits)
             
-            loss = loss+quant_loss+config.batch_size*bits_loss
+            loss = loss+quant_loss
             running_loss += loss.item()
             bits_per_pixel.append(BPP)
             # save the last batch input and output of every epoch
